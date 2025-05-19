@@ -2,22 +2,22 @@
 # Deployment Instructions for Streamlit Community Cloud:
 #
 # **Step 1: Update GitHub Repository**:
-# 1. Go to https://github.com/your-username/trendtrack-monitor.
+# 1. Go to https://github.com/rvijjapu/trackmonitor.
 # 2. Edit `app.py` and replace its content with this file.
-# 3. Update `requirements.txt` with the new dependencies.
-# 4. Commit with message: "Added support for all databases with dynamic parameters".
+# 3. Update `requirements.txt` to support only BigQuery and Microsoft SQL Server.
+# 4. Commit with message: "Limited database support to BigQuery and Microsoft SQL Server".
 #
 # **Step 2: Redeploy on Streamlit Community Cloud**:
 # 1. Log in at https://streamlit.io/cloud.
-# 2. Find your app (`trendtrack-monitor`) and click "Manage app".
-# 3. Click "Redeploy" to rebuild the app with the updated `app.py`.
-# 4. Access the app at the provided URL (e.g., https://trendtrack-monitor.streamlit.app).
+# 2. Find your app (`trackmonitor`) and click "Manage app".
+# 3. Click "Redeploy" to rebuild the app with the updated files.
+# 4. Access the app at https://trackmonitor.streamlit.app.
 #
 # **Step 3: Test the Dashboard**:
-# - Test database connections with various databases.
+# - Test database connections with BigQuery or Microsoft SQL Server.
 # - Switch between "360 View" and "Trends Comparison" tabs.
 # - Verify connection success messages, data loading, and dashboard functionality.
-!pip install streamlit 
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -34,29 +34,9 @@ import re
 
 # Optional database libraries
 try:
-    from supabase import create_client, Client
-except ImportError:
-    create_client = Client = None
-
-try:
     from google.cloud import bigquery
 except ImportError:
     bigquery = None
-
-try:
-    from pymongo import MongoClient
-except ImportError:
-    MongoClient = None
-
-try:
-    import cx_Oracle
-except ImportError:
-    cx_Oracle = None
-
-try:
-    from snowflake.sqlalchemy import URL
-except ImportError:
-    URL = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -207,17 +187,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Check for environment variables (for Streamlit Community Cloud)
-DATABASE_URL = os.getenv("DATABASE_URL")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
 # UI Form for Data Source Selection
 st.sidebar.header("Data Source Configuration")
-data_sources = [
-    "Dummy Data", "PostgreSQL", "MySQL", "Microsoft SQL Server", "Snowflake",
-    "SQLite", "MongoDB", "Oracle", "Neon", "Supabase", "BigQuery"
-]
+data_sources = ["Dummy Data", "Microsoft SQL Server", "BigQuery"]
 data_source = st.sidebar.selectbox("Select Data Source", data_sources)
 
 # Initialize session state for connection parameters and data
@@ -240,53 +212,15 @@ if 'top_promotions' not in st.session_state:
 if 'top_coupons' not in st.session_state:
     st.session_state.top_coupons = None
 
-# Supabase WebSocket setup (if available)
-if create_client and SUPABASE_URL and SUPABASE_KEY:
-    try:
-        @st.experimental_singleton
-        def init_supabase():
-            return create_client(SUPABASE_URL, SUPABASE_KEY)
-
-        supabase = init_supabase()
-
-        def subscribe_to_updates():
-            def listen(*args):
-                st.cache_data.clear()
-            supabase.table("subscriptions").on("*", listen).subscribe()
-            logger.info("Subscribed to Supabase real-time updates")
-
-        # Run subscription in a separate thread
-        threading.Thread(target=subscribe_to_updates, daemon=True).start()
-    except Exception as e:
-        logger.error(f"Failed to set up Supabase WebSocket: {str(e)}")
-else:
-    supabase = None
-
 # Database parameter requirements
 db_param_requirements = {
-    "PostgreSQL": ["host", "port", "database", "username", "password"],
-    "MySQL": ["host", "port", "database", "username", "password"],
     "Microsoft SQL Server": ["server", "database", "username", "password", "driver"],
-    "Snowflake": ["account", "user", "password", "role", "warehouse", "database", "schema"],
-    "SQLite": ["database_path"],
-    "MongoDB": ["host", "port", "database", "username", "password"],
-    "Oracle": ["host", "port", "service_name", "username", "password"],
-    "Neon": ["host", "port", "database", "username", "password"],
-    "Supabase": ["host", "port", "database", "username", "password"],
     "BigQuery": ["project_id", "dataset_id", "table_id", "credential_path"]
 }
 
 # Default values for parameters
 db_param_defaults = {
-    "PostgreSQL": {"host": "db.your-project.supabase.co", "port": "5432", "database": "postgres", "username": "postgres"},
-    "MySQL": {"host": "localhost", "port": "3306", "database": "mydb", "username": "root"},
     "Microsoft SQL Server": {"server": "localhost", "database": "mydb", "username": "sa", "driver": "ODBC Driver 17 for SQL Server"},
-    "Snowflake": {"account": "", "user": "", "role": "", "warehouse": "", "database": "", "schema": ""},
-    "SQLite": {"database_path": "/path/to/database.db"},
-    "MongoDB": {"host": "localhost", "port": "27017", "database": "mydb", "username": "admin"},
-    "Oracle": {"host": "localhost", "port": "1521", "service_name": "orcl", "username": "system"},
-    "Neon": {"host": "your-neon-host.neon.tech", "port": "5432", "database": "neondb", "username": "neonuser"},
-    "Supabase": {"host": "db.your-project.supabase.co", "port": "5432", "database": "postgres", "username": "postgres"},
     "BigQuery": {"project_id": "", "dataset_id": "trendtrack", "table_id": "subscriptions", "credential_path": ""}
 }
 
@@ -299,8 +233,6 @@ if data_source != "Dummy Data":
             st.session_state.connection_params[param] = st.sidebar.text_input(param.capitalize(), type="password", key=param)
         elif param in ["port"]:
             st.session_state.connection_params[param] = st.sidebar.text_input(param.capitalize(), value=default_value, key=param)
-        elif param == "database_path":
-            st.session_state.connection_params[param] = st.sidebar.text_input("Database Path (e.g., /path/to/database.db)", value=default_value, key=param)
         elif param == "credential_path":
             st.session_state.connection_params[param] = st.sidebar.text_input("Service Account JSON Path", value=default_value, key=param)
         else:
@@ -319,73 +251,18 @@ if data_source != "Dummy Data":
             if 'connection_objects' in st.session_state:
                 for conn_type, conn in st.session_state.connection_objects.items():
                     try:
-                        if conn_type in ["PostgreSQL", "MySQL", "Microsoft SQL Server", "Snowflake", "SQLite", "Oracle", "Neon", "Supabase", "RenderDB"] and conn:
+                        if conn_type in ["Microsoft SQL Server"] and conn:
                             conn.dispose()
-                        elif conn_type == "MongoDB" and conn:
-                            conn.close()
                     except:
                         pass
             st.session_state.connection_objects = {}
 
             try:
-                if data_source in ["PostgreSQL", "Neon", "Supabase"]:
-                    connection_string = DATABASE_URL if DATABASE_URL else \
-                        f"postgresql+psycopg2://{st.session_state.connection_params['username']}:{st.session_state.connection_params['password']}@{st.session_state.connection_params['host']}:{st.session_state.connection_params['port']}/{st.session_state.connection_params['database']}"
-                    engine = create_engine(connection_string)
-                    df = fetch_sql_data(engine, st.session_state.get('refresh_key', 0))
-                    st.session_state.connection_objects[data_source] = engine
-                elif data_source == "MySQL":
-                    connection_string = f"mysql+mysqlclient://{st.session_state.connection_params['username']}:{st.session_state.connection_params['password']}@{st.session_state.connection_params['host']}:{st.session_state.connection_params['port']}/{st.session_state.connection_params['database']}"
-                    engine = create_engine(connection_string)
-                    df = fetch_sql_data(engine, st.session_state.get('refresh_key', 0))
-                    st.session_state.connection_objects['MySQL'] = engine
-                elif data_source == "Microsoft SQL Server":
+                if data_source == "Microsoft SQL Server":
                     connection_string = f"mssql+pyodbc://{st.session_state.connection_params['username']}:{st.session_state.connection_params['password']}@{st.session_state.connection_params['server']}/{st.session_state.connection_params['database']}?driver={st.session_state.connection_params['driver']}"
                     engine = create_engine(connection_string)
                     df = fetch_sql_data(engine, st.session_state.get('refresh_key', 0))
                     st.session_state.connection_objects['MSSQL'] = engine
-                elif data_source == "Snowflake":
-                    if not URL:
-                        raise ImportError("Snowflake-SQLAlchemy is not installed.")
-                    connection_string = URL(
-                        account=st.session_state.connection_params['account'],
-                        user=st.session_state.connection_params['user'],
-                        password=st.session_state.connection_params['password'],
-                        database=st.session_state.connection_params['database'],
-                        schema=st.session_state.connection_params['schema'],
-                        warehouse=st.session_state.connection_params['warehouse'],
-                        role=st.session_state.connection_params['role']
-                    )
-                    engine = create_engine(connection_string)
-                    df = fetch_sql_data(engine, st.session_state.get('refresh_key', 0))
-                    st.session_state.connection_objects['Snowflake'] = engine
-                elif data_source == "SQLite":
-                    connection_string = f"sqlite:///{st.session_state.connection_params['database_path']}"
-                    engine = create_engine(connection_string)
-                    df = fetch_sql_data(engine, st.session_state.get('refresh_key', 0))
-                    st.session_state.connection_objects['SQLite'] = engine
-                elif data_source == "MongoDB":
-                    if not MongoClient:
-                        raise ImportError("pymongo is not installed.")
-                    client = MongoClient(
-                        host=st.session_state.connection_params['host'],
-                        port=int(st.session_state.connection_params['port']),
-                        username=st.session_state.connection_params['username'],
-                        password=st.session_state.connection_params['password']
-                    )
-                    db = client[st.session_state.connection_params['database']]
-                    collection = db['subscriptions']
-                    df = pd.DataFrame(list(collection.find()))
-                    if 'Date' in df.columns:
-                        df['Date'] = pd.to_datetime(df['Date'])
-                    st.session_state.connection_objects['MongoDB'] = client
-                elif data_source == "Oracle":
-                    if not cx_Oracle:
-                        raise ImportError("cx_Oracle is not installed.")
-                    connection_string = f"oracle+cx_oracle://{st.session_state.connection_params['username']}:{st.session_state.connection_params['password']}@{st.session_state.connection_params['host']}:{st.session_state.connection_params['port']}/{st.session_state.connection_params['service_name']}"
-                    engine = create_engine(connection_string)
-                    df = fetch_sql_data(engine, st.session_state.get('refresh_key', 0))
-                    st.session_state.connection_objects['Oracle'] = engine
                 elif data_source == "BigQuery":
                     if not bigquery:
                         raise ImportError("google-cloud-bigquery is not installed.")
@@ -506,7 +383,7 @@ def generate_dummy_data(_refresh_key):
     logger.info("Generated dummy data")
     return subscriptions_df, churn_triggers_df, top_promotions_df, top_coupons_df
 
-# Fetch data from SQL database
+# Fetch data from SQL database (for Microsoft SQL Server)
 @st.cache_data(ttl=10)
 def fetch_sql_data(_engine, _refresh_key):
     query = """
@@ -549,71 +426,19 @@ if 'refresh_key' not in st.session_state:
 if 'last_refresh' not in st.session_state:
     st.session_state.last_refresh = time.time()
 
-if time.time() - st.session_state.last_refresh > 10:  # Refresh every 10 seconds (unless WebSocket is active)
+if time.time() - st.session_state.last_refresh > 10:  # Refresh every 10 seconds
     st.session_state.refresh_key += 1
     st.cache_data.clear()
     if data_source == "Dummy Data" or not st.session_state.data_fetched:
         subscriptions_df, churn_triggers_df, top_promotions_df, top_coupons_df = generate_dummy_data(st.session_state.refresh_key)
     else:
         try:
-            if DATABASE_URL:
-                engine = create_engine(DATABASE_URL)
-                subscriptions_df = fetch_sql_data(engine, st.session_state.refresh_key)
-                st.session_state.connection_objects['RenderDB'] = engine
-            elif data_source in ["PostgreSQL", "Neon", "Supabase"]:
-                engine = create_engine(
-                    f"postgresql+psycopg2://{st.session_state.connection_params['username']}:{st.session_state.connection_params['password']}@{st.session_state.connection_params['host']}:{st.session_state.connection_params['port']}/{st.session_state.connection_params['database']}"
-                )
-                subscriptions_df = fetch_sql_data(engine, st.session_state.refresh_key)
-                st.session_state.connection_objects[data_source] = engine
-            elif data_source == "MySQL":
-                engine = create_engine(
-                    f"mysql+mysqlclient://{st.session_state.connection_params['username']}:{st.session_state.connection_params['password']}@{st.session_state.connection_params['host']}:{st.session_state.connection_params['port']}/{st.session_state.connection_params['database']}"
-                )
-                subscriptions_df = fetch_sql_data(engine, st.session_state.refresh_key)
-                st.session_state.connection_objects['MySQL'] = engine
-            elif data_source == "Microsoft SQL Server":
+            if data_source == "Microsoft SQL Server":
                 engine = create_engine(
                     f"mssql+pyodbc://{st.session_state.connection_params['username']}:{st.session_state.connection_params['password']}@{st.session_state.connection_params['server']}/{st.session_state.connection_params['database']}?driver={st.session_state.connection_params['driver']}"
                 )
                 subscriptions_df = fetch_sql_data(engine, st.session_state.refresh_key)
                 st.session_state.connection_objects['MSSQL'] = engine
-            elif data_source == "Snowflake":
-                connection_string = URL(
-                    account=st.session_state.connection_params['account'],
-                    user=st.session_state.connection_params['user'],
-                    password=st.session_state.connection_params['password'],
-                    database=st.session_state.connection_params['database'],
-                    schema=st.session_state.connection_params['schema'],
-                    warehouse=st.session_state.connection_params['warehouse'],
-                    role=st.session_state.connection_params['role']
-                )
-                engine = create_engine(connection_string)
-                subscriptions_df = fetch_sql_data(engine, st.session_state.refresh_key)
-                st.session_state.connection_objects['Snowflake'] = engine
-            elif data_source == "SQLite":
-                engine = create_engine(f"sqlite:///{st.session_state.connection_params['database_path']}")
-                subscriptions_df = fetch_sql_data(engine, st.session_state.refresh_key)
-                st.session_state.connection_objects['SQLite'] = engine
-            elif data_source == "MongoDB":
-                client = MongoClient(
-                    host=st.session_state.connection_params['host'],
-                    port=int(st.session_state.connection_params['port']),
-                    username=st.session_state.connection_params['username'],
-                    password=st.session_state.connection_params['password']
-                )
-                db = client[st.session_state.connection_params['database']]
-                collection = db['subscriptions']
-                subscriptions_df = pd.DataFrame(list(collection.find()))
-                if 'Date' in subscriptions_df.columns:
-                    subscriptions_df['Date'] = pd.to_datetime(subscriptions_df['Date'])
-                st.session_state.connection_objects['MongoDB'] = client
-            elif data_source == "Oracle":
-                engine = create_engine(
-                    f"oracle+cx_oracle://{st.session_state.connection_params['username']}:{st.session_state.connection_params['password']}@{st.session_state.connection_params['host']}:{st.session_state.connection_params['port']}/{st.session_state.connection_params['service_name']}"
-                )
-                subscriptions_df = fetch_sql_data(engine, st.session_state.refresh_key)
-                st.session_state.connection_objects['Oracle'] = engine
             elif data_source == "BigQuery":
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = st.session_state.connection_params['credential_path']
                 client = bigquery.Client(project=st.session_state.connection_params['project_id'])
@@ -1331,10 +1156,8 @@ def cleanup():
     if 'connection_objects' in st.session_state:
         for conn_type, conn in st.session_state.connection_objects.items():
             try:
-                if conn_type in ["PostgreSQL", "MySQL", "Microsoft SQL Server", "Snowflake", "SQLite", "Oracle", "Neon", "Supabase", "RenderDB"] and conn:
+                if conn_type in ["Microsoft SQL Server"] and conn:
                     conn.dispose()
-                elif conn_type == "MongoDB" and conn:
-                    conn.close()
             except:
                 pass
         st.session_state.connection_objects = {}
