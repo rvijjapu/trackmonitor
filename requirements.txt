@@ -1,13 +1,1 @@
-streamlit
-    pandas
-    plotly
-    numpy
-    SQLAlchemy
-    psycopg2-binary # Or psycopg2 if not on Windows
-    mysqlclient
-    pyodbc
-    snowflake-sqlalchemy
-    pymongo
-    cx_Oracle # If needed
-    google-cloud-bigquery # If needed
-    python-dotenv # Optional, for environment variables
+streamlit==1.36.0 pandas==2.2.2 plotly==5.22.0 numpy==1.26.4 sqlalchemy==2.0.30 psycopg2-binary==2.9.9 pymysql==1.1.1 pyodbc==5.1.0 snowflake-sqlalchemy==1.5.3 pymongo==4.8.0 cx_oracle==8.3.0 google-cloud-bigquery==3.23.0 supabase==2.5.1
